@@ -1,3 +1,4 @@
+"""Main module."""
 import operator as oper
 from functools import reduce
 import pandas as pd
