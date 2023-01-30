@@ -148,7 +148,7 @@ class SqlServerTable:
 
             SELECT
                 '{column}' as [column]
-                ,max(len({column})) AS [max_character_length]
+                ,max(len({column})) AS [computed_max_character_length]
                 ,sum([occurrences]) AS [count]
                 ,count(*) as [unique]
                 ,(SELECT TOP 1 {column} FROM cte_column_object ORDER BY occurrences DESC) AS [top]
