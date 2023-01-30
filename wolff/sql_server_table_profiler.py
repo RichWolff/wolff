@@ -23,7 +23,7 @@ datetime_columns = {
 }
 
 
-class Table:
+class SqlServerTable:
     def __init__(self, sa_engine, table):
         self.engine = sa_engine
         self.table = table
