@@ -84,12 +84,14 @@ class SqlServerTable:
         return self.engine.execute(qry).fetchone()[0], self.info().shape[0]
 
     def describe(self, include="numeric", datetime_as_numeric=False):
+        
         result = pd.DataFrame()
+
         if include in ("numeric", "all"):
             if num_cols := tuple(
                 self.info()[self.info()["data_type"].isin(numeric_columns)].index.values
             ):
-                print(num_cols)
+                
                 result = pd.concat(
                     [
                         result,
@@ -97,33 +99,32 @@ class SqlServerTable:
                     ]
                 )
             if datetime_as_numeric or include == "all":
+                if num_cols := tuple(
+                    self.info()[self.info()["data_type"].isin(datetime_columns)].index.values
+                ):
+
+                    result = pd.concat(
+                        [
+                            result,
+                            self.column_profiler_numeric(num_cols),
+                        ]
+                    )
+
+        if include in ("object", "all"):
+            if num_cols := tuple(
+                self.info()[self.info()["data_type"].isin(object_columns)].index.values
+            ):
+            
                 result = pd.concat(
                     [
                         result,
-                        self.column_profiler_datetime(
-                            tuple(
-                                self.info()[
-                                    self.info()["data_type"].isin(datetime_columns)
-                                ].index.values
-                            )
-                        ),
+                        self.column_profiler_numeric(num_cols),
                     ]
                 )
-
-        if include in ("object", "all"):
-            result = pd.concat(
-                [
-                    result,
-                    self.column_profiler_object(
-                        tuple(
-                            self.info()[
-                                self.info()["data_type"].isin(object_columns)
-                            ].index.values
-                        )
-                    ),
-                ]
-            )
         return result
+
+    def compare_text_lengths(self):
+
 
     @lru_cache(256)
     def column_profiler_object(self, columns):
