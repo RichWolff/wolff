@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 import tempfile
 import uuid
+from sql_server_table_profiler import Table
 
 
 operator_factory = {
