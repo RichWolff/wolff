@@ -126,6 +126,10 @@ class SqlServerTable:
                 )
         return result
 
+    def read(self):
+        qry = f"SELECT * FROM {self.table}"
+        return pd.read_sql(qry, self.engine)
+
     def compare_text_lengths(self):
         return self.describe(include="object").join(self.info())[
             ["data_type", "character_max_length", "computed_max_character_length"]
