@@ -86,18 +86,15 @@ class SqlServerTable:
     def describe(self, include="numeric", datetime_as_numeric=False):
         result = pd.DataFrame()
         if include in ("numeric", "all"):
-            result = pd.concat(
-                [
-                    result,
-                    self.column_profiler_numeric(
-                        tuple(
-                            self.info()[
-                                self.info()["data_type"].isin(numeric_columns)
-                            ].index.values
-                        )
-                    ),
-                ]
-            )
+            if num_cols := tuple(
+                self.info()[self.info()["data_type"].isin(numeric_columns)].index.values
+            ):
+                result = pd.concat(
+                    [
+                        result,
+                        self.column_profiler_numeric(num_cols),
+                    ]
+                )
             if datetime_as_numeric or include == "all":
                 result = pd.concat(
                     [
