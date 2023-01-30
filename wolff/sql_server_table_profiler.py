@@ -84,14 +84,14 @@ class SqlServerTable:
         return self.engine.execute(qry).fetchone()[0], self.info().shape[0]
 
     def describe(self, include="numeric", datetime_as_numeric=False):
-        
+
         result = pd.DataFrame()
 
         if include in ("numeric", "all"):
             if num_cols := tuple(
                 self.info()[self.info()["data_type"].isin(numeric_columns)].index.values
             ):
-                
+
                 result = pd.concat(
                     [
                         result,
@@ -100,7 +100,9 @@ class SqlServerTable:
                 )
             if datetime_as_numeric or include == "all":
                 if num_cols := tuple(
-                    self.info()[self.info()["data_type"].isin(datetime_columns)].index.values
+                    self.info()[
+                        self.info()["data_type"].isin(datetime_columns)
+                    ].index.values
                 ):
 
                     result = pd.concat(
@@ -114,7 +116,7 @@ class SqlServerTable:
             if num_cols := tuple(
                 self.info()[self.info()["data_type"].isin(object_columns)].index.values
             ):
-            
+
                 result = pd.concat(
                     [
                         result,
@@ -124,7 +126,9 @@ class SqlServerTable:
         return result
 
     def compare_text_lengths(self):
-
+        return self.describe(include="all").join(self.info())[
+            ["data_type", "character_max_length", "max_character_length"]
+        ]
 
     @lru_cache(256)
     def column_profiler_object(self, columns):
