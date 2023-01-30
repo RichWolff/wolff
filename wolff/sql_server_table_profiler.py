@@ -89,6 +89,7 @@ class SqlServerTable:
             if num_cols := tuple(
                 self.info()[self.info()["data_type"].isin(numeric_columns)].index.values
             ):
+                print(num_cols)
                 result = pd.concat(
                     [
                         result,
