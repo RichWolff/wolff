@@ -127,7 +127,7 @@ class SqlServerTable:
         return result
 
     def compare_text_lengths(self):
-        return self.describe(include="all").join(self.info())[
+        return self.describe(include="object").join(self.info())[
             ["data_type", "character_max_length", "max_character_length"]
         ]
 
