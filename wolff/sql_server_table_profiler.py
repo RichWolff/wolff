@@ -98,6 +98,7 @@ class SqlServerTable:
                         self.column_profiler_numeric(num_cols),
                     ]
                 )
+
             if datetime_as_numeric or include == "all":
                 if num_cols := tuple(
                     self.info()[
@@ -108,7 +109,7 @@ class SqlServerTable:
                     result = pd.concat(
                         [
                             result,
-                            self.column_profiler_numeric(num_cols),
+                            self.column_profiler_datetime(num_cols),
                         ]
                     )
 
@@ -120,7 +121,7 @@ class SqlServerTable:
                 result = pd.concat(
                     [
                         result,
-                        self.column_profiler_numeric(num_cols),
+                        self.column_profiler_object(num_cols),
                     ]
                 )
         return result
