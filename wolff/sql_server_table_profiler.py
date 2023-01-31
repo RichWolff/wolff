@@ -1,5 +1,8 @@
 import pandas as pd
 from functools import lru_cache
+from sqlalchemy import engine
+from typing import List, Tuple
+from tqdm import tqdm
 
 numeric_columns = {
     "bigint",
@@ -24,7 +27,13 @@ datetime_columns = {
 
 
 class SqlServerTable:
-    def __init__(self, sa_engine, table):
+    def __init__(self, sa_engine: engine, table: str):
+        """_summary_
+
+        Args:
+            sa_engine (engine): Sql Alchemy Engine (create_engine())
+            table (str): Table name at location
+        """
         self.engine = sa_engine
         self.table = table
 
@@ -85,46 +94,40 @@ class SqlServerTable:
 
     def describe(self, include="numeric", datetime_as_numeric=False):
 
-        result = pd.DataFrame()
+        include_cols: List[Tuple(str, str)] = []
 
         if include in ("numeric", "all"):
-            if num_cols := tuple(
-                self.info()[self.info()["data_type"].isin(numeric_columns)].index.values
-            ):
+            include_cols.extend(
+                [
+                    (self.column_profiler_numeric, col)
+                    for col in self.info()[
+                        self.info()["data_type"].isin(numeric_columns)
+                    ].index.tolist()
+                ]
+            )
 
-                result = pd.concat(
-                    [
-                        result,
-                        self.column_profiler_numeric(num_cols),
-                    ]
-                )
-
-            if datetime_as_numeric or include == "all":
-                if num_cols := tuple(
-                    self.info()[
-                        self.info()["data_type"].isin(datetime_columns)
-                    ].index.values
-                ):
-
-                    result = pd.concat(
-                        [
-                            result,
-                            self.column_profiler_datetime(num_cols),
-                        ]
-                    )
+        if datetime_as_numeric or include == "all":
+            include_cols.extend(
+                (self.column_profiler_datetime, col)
+                for col in self.info()[
+                    self.info()["data_type"].isin(datetime_columns)
+                ].index.tolist()
+            )
 
         if include in ("object", "all"):
-            if num_cols := tuple(
-                self.info()[self.info()["data_type"].isin(object_columns)].index.values
-            ):
+            include_cols.extend(
+                (self.column_profiler_object, col)
+                for col in self.info()[
+                    self.info()["data_type"].isin(object_columns)
+                ].index.tolist()
+            )
 
-                result = pd.concat(
-                    [
-                        result,
-                        self.column_profiler_object(num_cols),
-                    ]
-                )
-        return result
+        return pd.concat(
+            [
+                pd.DataFrame(),
+                *[profiler(column=col) for profiler, col in tqdm(include_cols)],
+            ]
+        )
 
     def read(self):
         qry = f"SELECT * FROM {self.table}"
@@ -136,10 +139,9 @@ class SqlServerTable:
         ]
 
     @lru_cache(256)
-    def column_profiler_object(self, columns):
-        df = pd.DataFrame()
-        for column in columns:
-            qry = f"""WITH cte_column_object AS (
+    def column_profiler_object(self, column: str) -> pd.DataFrame:
+
+        qry = f"""WITH cte_column_object AS (
                 SELECT
                     {column},
                     COUNT(*) as [occurrences]
@@ -159,59 +161,52 @@ class SqlServerTable:
                 ,max([occurrences]) as freq
             FROM
                 cte_column_object"""
-            df = pd.concat([df, pd.read_sql(qry, self.engine)])
-        return df.set_index("column")
+        return pd.read_sql(qry, self.engine)
 
     @lru_cache(256)
-    def column_profiler_numeric(self, columns):
-        df = pd.DataFrame()
-        for column in columns:
-            qry = f"""WITH cte_stats AS (
-                SELECT TOP 1
-                    MIN([{column}]) OVER() AS [min],
-                    MAX([{column}]) OVER() AS [max],
-                    AVG([{column}]) OVER() AS [mean],
-                    STDEV([{column}]) OVER() AS [std],
-                    PERCENTILE_DISC(0.25) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [25%],
-                    PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [50%],
-                    PERCENTILE_DISC(0.75) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [75%],
-                    COUNT([{column}]) OVER() AS [count]
-                FROM [{self.table}]
-            )
-            SELECT
+    def column_profiler_numeric(self, column: str) -> pd.DataFrame:
+        qry = f"""WITH cte_stats AS (
+            SELECT TOP 1
+                MIN([{column}]) OVER() AS [min],
+                MAX([{column}]) OVER() AS [max],
+                AVG([{column}]) OVER() AS [mean],
+                STDEV([{column}]) OVER() AS [std],
+                PERCENTILE_DISC(0.25) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [25%],
+                PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [50%],
+                PERCENTILE_DISC(0.75) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [75%],
+                COUNT([{column}]) OVER() AS [count]
+            FROM [{self.table}]
+        )
+        SELECT
+            '{column}' as [column],
+            [min],
+            [max],
+            [mean],
+            [std],
+            [25%],
+            [50%],
+            [75%],
+            [count]
+        FROM cte_stats"""
+        return pd.read_sql(qry, self.engine)
+
+    @lru_cache(256)
+    def column_profiler_datetime(self, column):
+        qry = f"""
+            SELECT TOP 1
                 '{column}' as [column],
-                [min],
-                [max],
-                [mean],
-                [std],
-                [25%],
-                [50%],
-                [75%],
-                [count]
-            FROM cte_stats"""
-            df = pd.concat([df, pd.read_sql(qry, self.engine)])
-        return df.set_index("column")
-
-    @lru_cache(256)
-    def column_profiler_datetime(self, columns):
-        df = pd.DataFrame()
-        for column in columns:
-            qry = f"""
-                SELECT TOP 1
-                    '{column}' as [column],
-                    MIN([{column}]) OVER() AS [min],
-                    MAX([{column}]) OVER() AS [max],
-                    CAST(AVG(CAST(CAST([{column}] AS DATETIME) as float)) OVER() AS datetime) AS [mean],
-                    CAST(STDEV(CAST(CAST([{column}] AS DATETIME) AS float)) OVER() AS datetime) AS [std],
-                    PERCENTILE_DISC(0.25) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [25%],
-                    PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [50%],
-                    PERCENTILE_DISC(0.75) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [75%],
-                    COUNT([{column}]) OVER() AS [count]
-                FROM 
-                    {self.table}
-            """
-            df = pd.concat([df, pd.read_sql(qry, self.engine)])
-        return df.set_index("column")
+                MIN([{column}]) OVER() AS [min],
+                MAX([{column}]) OVER() AS [max],
+                CAST(AVG(CAST(CAST([{column}] AS DATETIME) as float)) OVER() AS datetime) AS [mean],
+                CAST(STDEV(CAST(CAST([{column}] AS DATETIME) AS float)) OVER() AS datetime) AS [std],
+                PERCENTILE_DISC(0.25) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [25%],
+                PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [50%],
+                PERCENTILE_DISC(0.75) WITHIN GROUP (ORDER BY [{column}]) OVER() AS [75%],
+                COUNT([{column}]) OVER() AS [count]
+            FROM 
+                {self.table}
+        """
+        return pd.read_sql(qry, self.engine)
 
     def __repr__(self):
         pks = ", ".join(self.info()[self.info()["is_primary_key"] > 0].index)
