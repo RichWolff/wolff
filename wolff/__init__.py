@@ -4,4 +4,5 @@ __author__ = """Richard Wolff"""
 __email__ = "richwolff12@gmail.com"
 __version__ = "0.0.1"
 
-from .wolff import filter_pd, download_sql_data, Table
+from .wolff import filter_pd, download_sql_data
+from .table_profiler import Table
